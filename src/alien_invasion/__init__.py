@@ -1,2 +1,8 @@
 def main() -> None:
-    print("Hello from alien-invasion!")
+    """Run Alien Invasion from an installed command."""
+    from .app import run
+
+    run()
+
+
+__all__ = ["main"]

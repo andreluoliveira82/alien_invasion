@@ -1,7 +1,7 @@
 import pygame
 from pygame import Rect
 from pygame.sprite import Group
-from ship import Ship
+from .ship import Ship
 
 
 class Scoreboard:

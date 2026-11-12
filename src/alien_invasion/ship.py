@@ -1,6 +1,6 @@
 import pygame
 from pygame.sprite import Sprite
-from assets import IMAGE_DIR
+from .assets import IMAGE_DIR
 
 
 class Ship(Sprite):

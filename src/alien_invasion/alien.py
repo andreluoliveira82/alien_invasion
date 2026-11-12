@@ -1,5 +1,5 @@
 import pygame
-from assets import IMAGE_DIR
+from .assets import IMAGE_DIR
 from pygame.sprite import Sprite
 
 
