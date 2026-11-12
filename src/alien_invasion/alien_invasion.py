@@ -10,6 +10,7 @@ from .profiles import Profile, ProfileStore, ProfileStoreError
 from .scoreboard import Scoreboard
 from .settings import Settings
 from .ship import Ship
+from .sound_manager import SoundManager
 
 
 class AlienInvasion:
@@ -22,6 +23,7 @@ class AlienInvasion:
         settings: Settings,
         store: ProfileStore,
         profile: Profile,
+        sound_manager: SoundManager,
     ) -> None:
         """Inicializa o jogo e cria recursos"""
         self.screen = screen
@@ -29,6 +31,7 @@ class AlienInvasion:
         self.settings = settings
         self.store = store
         self.profile = profile
+        self.sound_manager = sound_manager
         self.stats = GameStats(settings, profile)
         self.scoreboard = Scoreboard(self)
         self.ship = Ship(self)
@@ -113,7 +116,9 @@ class AlienInvasion:
         """Start a fresh session while keeping this pilot's saved progress."""
         self.settings.initialize_dynamic_settings()
         self.stats.reset_stats()
+        self._storage_error_this_frame = False
         self.scoreboard.reset()
+        self.scoreboard.set_message(self.sound_manager.warning)
         self.game_active = True
         self.game_over = False
         self._return_to_profiles = False
@@ -145,6 +150,18 @@ class AlienInvasion:
         if len(self.bullets) < self.settings.bullets_allowed:
             new_bullet = Bullet(self)
             self.bullets.add(new_bullet)
+            self._play_sound("fire")
+
+    def _play_sound(self, name: str) -> None:
+        """Show new audio warnings without replacing a current storage error."""
+        previous_warning = self.sound_manager.warning
+        self.sound_manager.play(name)
+        if (
+            not self._storage_error_this_frame
+            and self.sound_manager.warning != previous_warning
+            and self.scoreboard.message in (None, previous_warning)
+        ):
+            self.scoreboard.set_message(self.sound_manager.warning)
 
     def _update_bullets(self) -> None:
         """Atualiza a posição dos projéteis e descarta os projeteis antigos"""
@@ -160,6 +177,7 @@ class AlienInvasion:
         # Se sim, descarta o projétil e o alienígena
         collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
         if collisions:
+            self._play_sound("hit")
             for aliens in collisions.values():
                 self.stats.score += self.settings.alien_points * len(aliens)
 
@@ -173,6 +191,7 @@ class AlienInvasion:
 
             # incrementa o nível
             self.stats.level += 1
+            self._play_sound("level_up")
             self.scoreboard.prep_level()
 
         if collisions or fleet_cleared:
@@ -185,13 +204,15 @@ class AlienInvasion:
                 self.profile, self.stats.score, self.stats.level
             )
         except ProfileStoreError as error:
+            self._storage_error_this_frame = True
             self.scoreboard.set_message(str(error))
         else:
             if updated:
                 self.stats.high_score = self.profile.high_score
                 self.stats.highest_level = self.profile.highest_level
                 self.scoreboard.refresh()
-                self.scoreboard.set_message(None)
+                if not self._storage_error_this_frame:
+                    self.scoreboard.set_message(self.sound_manager.warning)
 
     def _update_aliens(self) -> None:
         """Atualiza a posição de todos os alienigenas na frota"""
@@ -210,6 +231,7 @@ class AlienInvasion:
         """Responde à espaçonave sendo abatida por um alienígena"""
         if not self.game_active:
             return
+        self._play_sound("damage")
         # Count the current ship as a life, so three lives end on the third hit.
         self.stats.ships_left -= 1
         self.scoreboard.prep_ships()
@@ -222,6 +244,7 @@ class AlienInvasion:
         else:
             self.game_active = False
             self.game_over = True
+            self._play_sound("game_over")
             self.ship.moving_right = False
             self.ship.moving_left = False
             self._persist_progress()
@@ -238,6 +261,7 @@ class AlienInvasion:
     def run_game(self) -> None:
         """Inicializa o loop principal do jogo"""
         while not self._return_to_profiles:
+            self._storage_error_this_frame = False
             self._check_events()
             if self._return_to_profiles:
                 return
